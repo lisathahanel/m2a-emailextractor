@@ -190,8 +190,8 @@ export function extractEmailsFromText(input: string): ExtractionResult {
 
   while ((match = EMAIL_EXTRACT_REGEX.exec(input)) !== null) {
     const rawCandidate = match[1];
-    // Clean up trailing dots if any slipped in
-    const cleaned = rawCandidate.replace(/\.+$/, '').toLowerCase();
+    // Clean up leading single quotes and trailing dots if any slipped in
+    const cleaned = rawCandidate.replace(/^'+/, '').replace(/\.+$/, '').toLowerCase();
     // Reject consecutive dots in local or domain part
     if (!cleaned.includes('..') && STRICT_EMAIL_REGEX.test(cleaned)) {
       matches.push(cleaned);

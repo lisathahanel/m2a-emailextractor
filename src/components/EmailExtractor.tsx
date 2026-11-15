@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import {
   ArrowUpRight,
   Check,
   Copy,
   Download,
+  FileSpreadsheet,
   FileUp,
   ListChecks,
   MailSearch,
   Search,
   Sparkles,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   extractEmailsFromText,
@@ -59,7 +61,15 @@ export function EmailExtractor({
   const [resultView, setResultView] = useState<'list' | 'formatted'>('list');
   const [copiedAll, setCopiedAll] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [csvMeta, setCsvMeta] = useState<{
+    fileName: string;
+    rowCount: number;
+    truncatedPreview: boolean;
+    totalChars: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const domainFilterTokens = useMemo(() => {
     if (!domainFilterInput.trim()) return [];
@@ -109,6 +119,7 @@ export function EmailExtractor({
 
   const handleLoadSample = () => {
     setRawText(SAMPLE_TEXT);
+    setCsvMeta(null);
     const extracted = extractEmailsFromText(SAMPLE_TEXT);
     setResult(extracted);
     onExtractedChange(extracted.uniqueEmails);
@@ -117,25 +128,79 @@ export function EmailExtractor({
     setStatusMessage('Sample text loaded and extracted.');
   };
 
-  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processImportedFile = (file: File, requireCsv = false) => {
+    const isCsv =
+      file.name.toLowerCase().endsWith('.csv') ||
+      file.type.toLowerCase().includes('csv');
+
+    if (requireCsv && !isCsv) {
+      setStatusMessage(`Please select a valid .csv file (selected "${file.name}").`);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const content = typeof reader.result === 'string' ? reader.result : '';
       const truncated = content.slice(0, MAX_CHARS);
       setRawText(truncated);
-      const extracted = extractEmailsFromText(truncated);
+
+      // For CSV files, scan the full file locally so rows past MAX_CHARS are still extracted & deduplicated
+      const sourceToExtract = isCsv ? content : truncated;
+      const extracted = extractEmailsFromText(sourceToExtract);
       setResult(extracted);
       onExtractedChange(extracted.uniqueEmails);
-      setStatusMessage(
-        content.length > MAX_CHARS
-          ? `Loaded first ${MAX_CHARS.toLocaleString()} characters from "${file.name}".`
-          : `Loaded "${file.name}" locally in browser.`
-      );
+      setFilterQuery('');
+      setTypeFilter('all');
+
+      if (isCsv) {
+        const nonEmptyRows = content
+          .split(/\r?\n/)
+          .filter((line) => line.trim().length > 0).length;
+        setCsvMeta({
+          fileName: file.name,
+          rowCount: nonEmptyRows,
+          truncatedPreview: content.length > MAX_CHARS,
+          totalChars: content.length,
+        });
+        setStatusMessage(
+          `Extracted ${extracted.uniqueEmails.length.toLocaleString()} unique email${
+            extracted.uniqueEmails.length === 1 ? '' : 's'
+          } from CSV "${file.name}" (${extracted.duplicatesRemoved.toLocaleString()} duplicate${
+            extracted.duplicatesRemoved === 1 ? '' : 's'
+          } removed).`
+        );
+      } else {
+        setCsvMeta(null);
+        setStatusMessage(
+          content.length > MAX_CHARS
+            ? `Loaded first ${MAX_CHARS.toLocaleString()} characters from "${file.name}".`
+            : `Loaded "${file.name}" locally in browser.`
+        );
+      }
     };
     reader.readAsText(file);
+  };
+
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImportedFile(file, false);
     e.target.value = '';
+  };
+
+  const handleCsvUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImportedFile(file, true);
+    e.target.value = '';
+  };
+
+  const handleDropFile = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    processImportedFile(file, false);
   };
 
   const domainFilteredEmails = useMemo(() => {
@@ -251,6 +316,7 @@ export function EmailExtractor({
   const handleClear = () => {
     setRawText('');
     setResult(null);
+    setCsvMeta(null);
     setFilterQuery('');
     setDomainFilterInput('');
     setTypeFilter('all');
@@ -273,7 +339,7 @@ export function EmailExtractor({
             instantly in your browser.
           </p>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={handleLoadSample}
@@ -281,6 +347,22 @@ export function EmailExtractor({
           >
             <Sparkles className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
             Load Sample Text
+          </button>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleCsvUpload}
+            className="sr-only"
+            aria-label="Upload CSV file"
+          />
+          <button
+            type="button"
+            onClick={() => csvInputRef.current?.click()}
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100 cursor-pointer whitespace-nowrap"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+            Upload CSV
           </button>
           <input
             ref={fileInputRef}
@@ -303,10 +385,22 @@ export function EmailExtractor({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
         {/* Left: Input Panel */}
-        <div className="lg:col-span-6 flex flex-col rounded-xl border border-slate-200/90 bg-white p-5 sm:p-6">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!isDraggingFile) setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={handleDropFile}
+          className={`lg:col-span-6 flex flex-col rounded-xl border bg-white p-5 sm:p-6 transition-colors ${
+            isDraggingFile
+              ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/20'
+              : 'border-slate-200/90'
+          }`}
+        >
           <div className="mb-3 flex items-center justify-between gap-4">
             <label htmlFor="extractor-textarea" className="text-sm font-semibold text-slate-800">
-              Source Text Input
+              Source Text or CSV Input
             </label>
             <span
               className={`font-mono text-xs tabular-nums ${
@@ -317,13 +411,43 @@ export function EmailExtractor({
             </span>
           </div>
 
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50/70 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 text-slate-600">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
+              <span>
+                {csvMeta ? (
+                  <>
+                    Loaded <strong className="text-slate-900">{csvMeta.fileName}</strong> (
+                    <span className="tabular-nums">{csvMeta.rowCount.toLocaleString()}</span> rows
+                    {csvMeta.truncatedPreview
+                      ? ` · full ${csvMeta.totalChars.toLocaleString()} chars extracted`
+                      : ''}
+                    )
+                  </>
+                ) : (
+                  'Drag & drop a .csv file here or upload to extract & deduplicate all rows locally.'
+                )}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => csvInputRef.current?.click()}
+              className="font-semibold text-sky-700 hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
+            >
+              {csvMeta ? 'Upload Another CSV' : 'Choose CSV File'}
+            </button>
+          </div>
+
           <textarea
             id="extractor-textarea"
             value={rawText}
-            onChange={(e) => setRawText(e.target.value.slice(0, MAX_CHARS))}
+            onChange={(e) => {
+              setRawText(e.target.value.slice(0, MAX_CHARS));
+              if (csvMeta) setCsvMeta(null);
+            }}
             maxLength={MAX_CHARS}
-            rows={11}
-            placeholder="Paste any text containing email addresses here (up to 100,000 characters)..."
+            rows={10}
+            placeholder="Paste any text containing email addresses here (up to 100,000 characters), or upload a CSV file above..."
             className="w-full flex-1 resize-y rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 font-mono text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-sky-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600/15"
           />
 
@@ -490,13 +614,19 @@ export function EmailExtractor({
         <div className="lg:col-span-6 flex flex-col rounded-xl border border-slate-200/90 bg-white p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Unique Emails Found</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Extracted Emails</h3>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 tabular-nums">
                 <span>
                   Email count:{' '}
                   <strong className="font-semibold text-slate-900">
                     {filteredEmails.length}
                   </strong>
+                  {result && filteredEmails.length !== domainFilteredEmails.length && (
+                    <span className="text-slate-400">
+                      {' '}
+                      of {domainFilteredEmails.length}
+                    </span>
+                  )}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>{result ? result.duplicatesRemoved : 0} duplicates removed</span>
@@ -561,23 +691,54 @@ export function EmailExtractor({
             </div>
           </div>
 
+          {/* Dedicated Real-Time Search Bar for Extracted Emails */}
+          <div className="mt-4">
+            <label htmlFor="extracted-emails-search" className="sr-only">
+              Search extracted emails
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                id="extracted-emails-search"
+                type="text"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                disabled={!result || result.uniqueEmails.length === 0}
+                placeholder="Search extracted emails in real time (name, prefix, or domain)..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-sky-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600/15 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              {filterQuery && (
+                <button
+                  type="button"
+                  onClick={() => setFilterQuery('')}
+                  aria-label="Clear search filter"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {result && result.uniqueEmails.length > 0 ? (
             <>
               {/* Filter & View Switcher Toolbar */}
-              <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative flex-1">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="search"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    placeholder="Filter extracted emails or domains..."
-                    aria-label="Filter extracted emails"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-sky-600 focus:bg-white focus:outline-none"
-                  />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="text-xs text-slate-500 tabular-nums">
+                  {filterQuery.trim() ? (
+                    <span>
+                      Matching{' '}
+                      <strong className="font-semibold text-slate-800">
+                        {filteredEmails.length}
+                      </strong>{' '}
+                      of {domainFilteredEmails.length}
+                    </span>
+                  ) : (
+                    <span>Showing all {filteredEmails.length} unique addresses</span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -692,7 +853,21 @@ export function EmailExtractor({
                                 className="truncate font-mono text-sm text-slate-800"
                                 title={email}
                               >
-                                {email}
+                                {(() => {
+                                  const q = filterQuery.trim().toLowerCase();
+                                  if (!q) return email;
+                                  const matchIdx = email.toLowerCase().indexOf(q);
+                                  if (matchIdx === -1) return email;
+                                  return (
+                                    <>
+                                      {email.slice(0, matchIdx)}
+                                      <mark className="rounded-xs bg-amber-100 px-0.5 text-slate-900">
+                                        {email.slice(matchIdx, matchIdx + q.length)}
+                                      </mark>
+                                      {email.slice(matchIdx + q.length)}
+                                    </>
+                                  );
+                                })()}
                               </span>
                               {(isRole || isDisp) && (
                                 <span className="hidden sm:inline shrink-0 text-xs text-slate-400">

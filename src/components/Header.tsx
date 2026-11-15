@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { path: '/validator', label: 'Validator' },
   { path: '/formatter', label: 'Formatter' },
   { path: '/domains', label: 'Domains' },
-  { path: '/utilities', label: 'Utilities' },
+  { path: '/sender', label: 'Bulk Sender' },
 ];
 
 export function Header({ currentPath, onNavigate, onJumpToValidator }: HeaderProps) {

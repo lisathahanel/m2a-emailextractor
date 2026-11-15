@@ -67,11 +67,11 @@ export function Footer({ onNavigate }: FooterProps) {
               Domain Extractor
             </a>
             <a
-              href="/utilities"
-              onClick={(e) => handleInternalNav(e, '/utilities')}
+              href="/sender"
+              onClick={(e) => handleInternalNav(e, '/sender')}
               className="hover:text-slate-900 transition-colors"
             >
-              Free Email Utilities
+              Bulk Email Sender
             </a>
           </div>
         </div>

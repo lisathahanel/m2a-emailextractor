@@ -4,17 +4,17 @@ import {
   LayoutGrid,
   MailCheck,
   MailSearch,
+  Send,
   Wand2,
-  Wrench,
 } from 'lucide-react';
 import { AdSenseUnit } from './components/AdSenseUnit';
 import { DomainExtractor } from './components/DomainExtractor';
 import { EmailExtractor } from './components/EmailExtractor';
 import { EmailFormatter } from './components/EmailFormatter';
+import { EmailSender } from './components/EmailSender';
 import { EmailValidator } from './components/EmailValidator';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
-import { MoreEmailTools } from './components/MoreEmailTools';
 import { PrivacyNotice } from './components/PrivacyNotice';
 import { extractDomainsFromEmails } from './utils/emailTools';
 import {
@@ -30,7 +30,7 @@ const ROUTE_ICONS: Record<ToolRoute, typeof LayoutGrid> = {
   validator: MailCheck,
   formatter: Wand2,
   domains: Globe,
-  utilities: Wrench,
+  sender: Send,
 };
 
 export default function App() {
@@ -116,11 +116,11 @@ export default function App() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Email Extraction, Formatting &amp; Verification Suite
+                Email Extraction, Verification &amp; Bulk Campaign Suite
               </h1>
               <p className="text-sm text-slate-600 max-w-2xl">
-                Extract unique addresses, normalize messy lists, inspect domains, and verify
-                deliverability discreetly in real time.
+                Extract unique addresses, normalize messy lists, inspect domains, verify
+                deliverability, and send bulk campaigns using your own SMTP or Email API.
               </p>
             </div>
 
@@ -183,7 +183,7 @@ export default function App() {
 
         {/* Main 2-Column App Workspace: Tools on Left, Sticky Advertisement & Quick Jump Rail on Right */}
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          {/* Primary Tool Workbench (kept mounted with HTML hidden so state persists across /extractor, /formatter, /validator, /domains, /utilities) */}
+          {/* Primary Tool Workbench (kept mounted with HTML hidden so state persists across pages) */}
           <div className="min-w-0 flex-1 space-y-8 order-2 lg:order-1">
             <div hidden={!showSection('extractor')}>
               <EmailExtractor
@@ -215,8 +215,8 @@ export default function App() {
               />
             </div>
 
-            <div hidden={!showSection('utilities')}>
-              <MoreEmailTools />
+            <div hidden={!showSection('sender')}>
+              <EmailSender extractedEmails={extractedEmails} />
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export default function App() {
                   { path: '/validator', id: 'validator' as const, name: 'Address Validator', note: '/validator' },
                   { path: '/formatter', id: 'formatter' as const, name: 'Email Formatter', note: '/formatter' },
                   { path: '/domains', id: 'domains' as const, name: 'Domain Extractor', note: '/domains' },
-                  { path: '/utilities', id: 'utilities' as const, name: 'More Utilities', note: '/utilities' },
+                  { path: '/sender', id: 'sender' as const, name: 'Bulk Email Sender', note: '/sender' },
                 ].map((item) => (
                   <a
                     key={item.path}
