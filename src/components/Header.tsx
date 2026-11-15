@@ -1,17 +1,32 @@
 import { MailCheck } from 'lucide-react';
+import { isModifiedClick } from '../utils/routes';
 
 interface HeaderProps {
+  currentPath: string;
+  onNavigate: (path: string) => void;
   onJumpToValidator: () => void;
-  onSelectWorkspaceTab: (tab: 'all' | 'extractor' | 'validator' | 'formatter' | 'domains') => void;
 }
 
-export function Header({ onJumpToValidator, onSelectWorkspaceTab }: HeaderProps) {
+const NAV_LINKS = [
+  { path: '/extractor', label: 'Extractor' },
+  { path: '/validator', label: 'Validator' },
+  { path: '/formatter', label: 'Formatter' },
+  { path: '/domains', label: 'Domains' },
+  { path: '/utilities', label: 'Utilities' },
+];
+
+export function Header({ currentPath, onNavigate, onJumpToValidator }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-slate-900 text-white">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-8 px-4 py-3 sm:px-6">
         <a
-          href="#top"
-          onClick={() => onSelectWorkspaceTab('all')}
+          href="/"
+          onClick={(e) => {
+            if (!isModifiedClick(e)) {
+              e.preventDefault();
+              onNavigate('/');
+            }
+          }}
           className="text-base font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400 rounded"
         >
           EmailVerify Suite
@@ -21,41 +36,27 @@ export function Header({ onJumpToValidator, onSelectWorkspaceTab }: HeaderProps)
           aria-label="Primary navigation"
           className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300"
         >
-          <a
-            href="#extractor"
-            onClick={() => onSelectWorkspaceTab('all')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Extractor
-          </a>
-          <a
-            href="#validator"
-            onClick={() => onSelectWorkspaceTab('all')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Validator
-          </a>
-          <a
-            href="#formatter"
-            onClick={() => onSelectWorkspaceTab('all')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Formatter
-          </a>
-          <a
-            href="#domain-extractor"
-            onClick={() => onSelectWorkspaceTab('all')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Domains
-          </a>
-          <a
-            href="#more-tools"
-            onClick={() => onSelectWorkspaceTab('all')}
-            className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap shrink-0"
-          >
-            Utilities
-          </a>
+          {NAV_LINKS.map((link) => {
+            const isActive = currentPath === link.path;
+            return (
+              <a
+                key={link.path}
+                href={link.path}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={(e) => {
+                  if (!isModifiedClick(e)) {
+                    e.preventDefault();
+                    onNavigate(link.path);
+                  }
+                }}
+                className={`transition-colors whitespace-nowrap shrink-0 hover:underline underline-offset-4 ${
+                  isActive ? 'text-white underline' : 'hover:text-white'
+                }`}
+              >
+                {link.label}
+              </a>
+            );
+          })}
         </nav>
 
         <div className="shrink-0">

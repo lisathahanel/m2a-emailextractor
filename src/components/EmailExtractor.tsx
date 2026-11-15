@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   ArrowUpRight,
   Check,
@@ -50,6 +50,7 @@ export function EmailExtractor({
   const [rawText, setRawText] = useState('');
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
+  const [domainFilterInput, setDomainFilterInput] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'personal' | 'role'>('all');
   const [separatorType, setSeparatorType] = useState<SeparatorType>('newline');
   const [customSeparator, setCustomSeparator] = useState('; ');
@@ -59,6 +60,26 @@ export function EmailExtractor({
   const [copiedAll, setCopiedAll] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const domainFilterTokens = useMemo(() => {
+    if (!domainFilterInput.trim()) return [];
+    return domainFilterInput
+      .split(/[\n\r,;]+|\s+/)
+      .map((token) => token.trim().toLowerCase().replace(/^[@*.]+/, ''))
+      .filter(Boolean);
+  }, [domainFilterInput]);
+
+  const emailMatchesDomainFilter = (email: string, tokens: string[]): boolean => {
+    if (tokens.length === 0) return true;
+    const domain = (email.split('@')[1] ?? '').toLowerCase();
+    if (!domain) return false;
+    return tokens.some((clean) => {
+      if (domain === clean) return true;
+      if (domain.endsWith(`.${clean}`)) return true;
+      if (!clean.includes('.') && domain.startsWith(`${clean}.`)) return true;
+      return false;
+    });
+  };
 
   const charCount = rawText.length;
   const nearLimit = charCount >= MAX_CHARS * 0.9;
@@ -117,10 +138,21 @@ export function EmailExtractor({
     e.target.value = '';
   };
 
-  const filteredEmails = useMemo(() => {
+  const domainFilteredEmails = useMemo(() => {
     if (!result) return [];
+    if (domainFilterTokens.length === 0) return result.uniqueEmails;
+    return result.uniqueEmails.filter((email) =>
+      emailMatchesDomainFilter(email, domainFilterTokens)
+    );
+  }, [result, domainFilterTokens]);
+
+  useEffect(() => {
+    onExtractedChange(domainFilteredEmails);
+  }, [domainFilteredEmails, onExtractedChange]);
+
+  const filteredEmails = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
-    const filtered = result.uniqueEmails.filter((email) => {
+    const filtered = domainFilteredEmails.filter((email) => {
       if (q && !email.includes(q)) return false;
       const isRole = isRoleBasedEmail(email);
       if (typeFilter === 'personal' && isRole) return false;
@@ -132,7 +164,7 @@ export function EmailExtractor({
       return [...filtered].sort((a, b) => a.localeCompare(b));
     }
     return filtered;
-  }, [result, filterQuery, typeFilter, sortAlphabetically]);
+  }, [domainFilteredEmails, filterQuery, typeFilter, sortAlphabetically]);
 
   const activeSeparator = useMemo(() => {
     switch (separatorType) {
@@ -220,6 +252,7 @@ export function EmailExtractor({
     setRawText('');
     setResult(null);
     setFilterQuery('');
+    setDomainFilterInput('');
     setTypeFilter('all');
     setStatusMessage(null);
     onExtractedChange([]);
@@ -355,6 +388,54 @@ export function EmailExtractor({
               </div>
             </div>
 
+            <div className="border-t border-slate-200/80 pt-2.5 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor="extractor-domain-filter"
+                  className="text-xs font-semibold text-slate-700"
+                >
+                  Only extract domains (optional):
+                </label>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  <span>Quick add:</span>
+                  {['@gmail', '@co.za', '@outlook', '@yahoo'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() =>
+                        setDomainFilterInput((prev) => {
+                          const existing = prev.trim();
+                          if (!existing) return preset;
+                          const parts = existing.split(/[\n\r,;]+|\s+/).map((p) => p.toLowerCase());
+                          return parts.includes(preset) ? existing : `${existing}, ${preset}`;
+                        })
+                      }
+                      className="font-mono font-medium text-sky-700 hover:underline underline-offset-2 cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                  {domainFilterInput && (
+                    <button
+                      type="button"
+                      onClick={() => setDomainFilterInput('')}
+                      className="font-medium text-slate-500 hover:text-slate-800 hover:underline underline-offset-2 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                id="extractor-domain-filter"
+                type="text"
+                value={domainFilterInput}
+                onChange={(e) => setDomainFilterInput(e.target.value)}
+                placeholder="e.g. @gmail, @co.za, @company.com (leave empty for all domains)"
+                className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-sky-600 focus:outline-none"
+              />
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-2.5">
               <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                 <input
@@ -464,7 +545,8 @@ export function EmailExtractor({
                 disabled={filteredEmails.length === 0}
                 className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer whitespace-nowrap"
               >
-                CSV
+                <Download className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                Download as CSV
               </button>
 
               <button

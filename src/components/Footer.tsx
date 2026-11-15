@@ -1,4 +1,15 @@
-export function Footer() {
+interface FooterProps {
+  onNavigate?: (path: string) => void;
+}
+
+export function Footer({ onNavigate }: FooterProps) {
+  const handleInternalNav = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    if (!onNavigate) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onNavigate(path);
+  };
+
   return (
     <footer className="mt-16 border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -27,13 +38,39 @@ export function Footer() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-5 text-xs font-medium text-slate-600">
-            <a href="#extractor" className="hover:text-slate-900 transition-colors">
+            <a
+              href="/extractor"
+              onClick={(e) => handleInternalNav(e, '/extractor')}
+              className="hover:text-slate-900 transition-colors"
+            >
               Email Extractor
             </a>
-            <a href="#validator" className="hover:text-slate-900 transition-colors">
+            <a
+              href="/validator"
+              onClick={(e) => handleInternalNav(e, '/validator')}
+              className="hover:text-slate-900 transition-colors"
+            >
               Email Validator
             </a>
-            <a href="#more-tools" className="hover:text-slate-900 transition-colors">
+            <a
+              href="/formatter"
+              onClick={(e) => handleInternalNav(e, '/formatter')}
+              className="hover:text-slate-900 transition-colors"
+            >
+              Email Formatter
+            </a>
+            <a
+              href="/domains"
+              onClick={(e) => handleInternalNav(e, '/domains')}
+              className="hover:text-slate-900 transition-colors"
+            >
+              Domain Extractor
+            </a>
+            <a
+              href="/utilities"
+              onClick={(e) => handleInternalNav(e, '/utilities')}
+              className="hover:text-slate-900 transition-colors"
+            >
               Free Email Utilities
             </a>
           </div>

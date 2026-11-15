@@ -6,11 +6,14 @@ import {
   type DomainCategory,
 } from '../utils/emailTools';
 
+import { isModifiedClick } from '../utils/routes';
+
 interface DomainExtractorProps {
   extractedEmails: string[];
+  onNavigate?: (path: string) => void;
 }
 
-export function DomainExtractor({ extractedEmails }: DomainExtractorProps) {
+export function DomainExtractor({ extractedEmails, onNavigate }: DomainExtractorProps) {
   const [sourceMode, setSourceMode] = useState<'synced' | 'custom'>('synced');
   const [customInput, setCustomInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -342,8 +345,14 @@ export function DomainExtractor({ extractedEmails }: DomainExtractorProps) {
             </p>
             {sourceMode === 'synced' && (
               <a
-                href="#extractor"
-                className="mt-3 text-xs font-medium text-blue-600 hover:underline underline-offset-4"
+                href="/extractor"
+                onClick={(e) => {
+                  if (onNavigate && !isModifiedClick(e)) {
+                    e.preventDefault();
+                    onNavigate('/extractor');
+                  }
+                }}
+                className="mt-3 text-xs font-medium text-sky-700 hover:underline underline-offset-4"
               >
                 Go to Email Extractor
               </a>
